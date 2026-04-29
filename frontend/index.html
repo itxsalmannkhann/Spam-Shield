@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SpamShield — AI Spam Detector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ── CSS Variables ───────────────────────────────────────── */
+    :root {
+      --bg:           #080c10;
+      --bg2:          #0d1117;
+      --surface:      #111820;
+      --border:       #1e2d3d;
+      --border-glow:  #00e5ff40;
+      --cyan:         #00e5ff;
+      --cyan-dim:     #00e5ff20;
+      --red:          #ff3b5c;
+      --red-dim:      #ff3b5c18;
+      --green:        #00e676;
+      --green-dim:    #00e67618;
+      --text:         #e8f4f8;
+      --text-dim:     #6b8ca4;
+      --mono:         'JetBrains Mono', monospace;
+      --display:      'Syne', sans-serif;
+    }
+
+    /* ── Reset & Base ────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--display);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated Background Grid ────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -40%;
+      left: -20%;
+      width: 70%;
+      height: 70%;
+      background: radial-gradient(ellipse, #00e5ff0a 0%, transparent 65%);
+      pointer-events: none;
+      z-index: 0;
+      animation: drift 18s ease-in-out infinite alternate;
+    }
+
+    @keyframes drift {
+      from { transform: translate(0, 0); }
+      to   { transform: translate(8%, 12%); }
+    }
+
+    /* ── Layout ──────────────────────────────────────────────── */
+    .wrapper {
+      position: relative;
+      z-index: 1;
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 60px 24px 80px;
+    }
+
+    /* ── Header ──────────────────────────────────────────────── */
+    header {
+      text-align: center;
+      margin-bottom: 56px;
+      animation: fadeUp 0.7s ease both;
+    }
+
+    .logo-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .shield-icon {
+      width: 52px;
+      height: 52px;
+      filter: drop-shadow(0 0 12px var(--cyan));
+    }
+
+    h1 {
+      font-size: clamp(2rem, 6vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #fff 30%, var(--cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--cyan);
+      border: 1px solid var(--cyan);
+      border-radius: 20px;
+      padding: 3px 12px;
+      opacity: 0.8;
+    }
+
+    /* ── Card ────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 32px;
+      margin-bottom: 24px;
+      position: relative;
+      animation: fadeUp 0.7s ease 0.15s both;
+      transition: border-color 0.3s;
+    }
+
+    .card:hover {
+      border-color: var(--border-glow);
+    }
+
+    /* top-left corner accent */
+    .card::before {
+      content: '';
+      position: absolute;
+      top: -1px; left: -1px;
+      width: 60px; height: 60px;
+      border-top: 2px solid var(--cyan);
+      border-left: 2px solid var(--cyan);
+      border-radius: 16px 0 0 0;
+      opacity: 0.6;
+    }
+
+    /* ── Input Area ──────────────────────────────────────────── */
+    .input-label {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      color: var(--cyan);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .input-label::before {
+      content: '//';
+      opacity: 0.5;
+    }
+
+    textarea {
+      width: 100%;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 0.92rem;
+      line-height: 1.7;
+      padding: 18px 20px;
+      resize: vertical;
+      min-height: 130px;
+      transition: border-color 0.25s, box-shadow 0.25s;
+      outline: none;
+    }
+
+    textarea::placeholder {
+      color: var(--text-dim);
+      opacity: 0.6;
+    }
+
+    textarea:focus {
+      border-color: var(--cyan);
+      box-shadow: 0 0 0 3px var(--cyan-dim);
+    }
+
+    .char-count {
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      text-align: right;
+      margin-top: 8px;
+    }
+
+    /* ── Buttons ─────────────────────────────────────────────── */
+    .btn-row {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn-primary {
+      flex: 1;
+      background: var(--cyan);
+      color: #000;
+      border: none;
+      border-radius: 10px;
+      font-family: var(--display);
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 15px 28px;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 28px #00e5ff35;
+    }
+
+    .btn-primary:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-clear {
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-family: var(--display);
+      font-size: 0.88rem;
+      font-weight: 600;
+      padding: 15px 22px;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .btn-clear:hover {
+      color: var(--text);
+      border-color: var(--text-dim);
+    }
+
+    /* ── Scanning Animation ──────────────────────────────────── */
+    .scanning-bar {
+      display: none;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      border-radius: 4px;
+      margin-top: 20px;
+      animation: scan 1.2s ease-in-out infinite;
+    }
+
+    .scanning-bar.active { display: block; }
+
+    @keyframes scan {
+      0%   { transform: translateX(-100%); opacity: 0; }
+      30%  { opacity: 1; }
+      70%  { opacity: 1; }
+      100% { transform: translateX(200%); opacity: 0; }
+    }
+
+    .scanning-text {
+      display: none;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--cyan);
+      text-align: center;
+      margin-top: 14px;
+      letter-spacing: 0.1em;
+    }
+
+    .scanning-text.active {
+      display: block;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0.3; }
+    }
+
+    /* ── Result Panel ─────────────────────────────────────────── */
+    .result-panel {
+      display: none;
+      border-radius: 16px;
+      padding: 32px;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      animation: resultIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+      position: relative;
+      overflow: hidden;
+    }
+
+    @keyframes resultIn {
+      from { opacity: 0; transform: scale(0.94) translateY(20px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .result-panel.spam {
+      background: var(--red-dim);
+      border-color: var(--red);
+    }
+
+    .result-panel.ham {
+      background: var(--green-dim);
+      border-color: var(--green);
+    }
+
+    /* glow behind verdict */
+    .result-panel::before {
+      content: '';
+      position: absolute;
+      top: -50%; right: -20%;
+      width: 280px; height: 280px;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .result-panel.spam::before {
+      background: radial-gradient(ellipse, #ff3b5c18, transparent 70%);
+    }
+
+    .result-panel.ham::before {
+      background: radial-gradient(ellipse, #00e67618, transparent 70%);
+    }
+
+    .verdict-row {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+
+    .verdict-icon {
+      font-size: 2.6rem;
+      line-height: 1;
+    }
+
+    .verdict-text h2 {
+      font-size: 1.9rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .result-panel.spam .verdict-text h2 { color: var(--red); }
+    .result-panel.ham  .verdict-text h2 { color: var(--green); }
+
+    .verdict-sub {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      letter-spacing: 0.06em;
+    }
+
+    /* ── Probability Bars ────────────────────────────────────── */
+    .prob-section {
+      margin-bottom: 24px;
+    }
+
+    .prob-label {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 10px;
+    }
+
+    .prob-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+
+    .prob-name {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      width: 40px;
+      text-align: right;
+    }
+
+    .prob-bar-bg {
+      flex: 1;
+      height: 8px;
+      background: var(--bg2);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .prob-bar-fill {
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.9s cubic-bezier(0.34, 1.2, 0.64, 1);
+      width: 0%;
+    }
+
+    .prob-bar-fill.spam { background: var(--red); box-shadow: 0 0 8px var(--red); }
+    .prob-bar-fill.ham  { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+    .prob-value {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      font-weight: 500;
+      width: 52px;
+    }
+
+    .prob-row.spam-row .prob-value { color: var(--red); }
+    .prob-row.ham-row  .prob-value { color: var(--green); }
+
+    /* ── Details Grid ────────────────────────────────────────── */
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .detail-box {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .detail-box-label {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+    }
+
+    .detail-box-value {
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: var(--text);
+      word-break: break-word;
+      line-height: 1.5;
+    }
+
+    .confidence-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .confidence-High   { background: #00e67625; color: var(--green); }
+    .confidence-Medium { background: #ffb30025; color: #ffb300; }
+    .confidence-Low    { background: #ff3b5c25; color: var(--red); }
+
+    /* ── Stats Footer ────────────────────────────────────────── */
+    .stats-row {
+      display: flex;
+      gap: 16px;
+      margin-top: 28px;
+      animation: fadeUp 0.7s ease 0.3s both;
+    }
+
+    .stat-box {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      text-align: center;
+    }
+
+    .stat-number {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--cyan);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .stat-label {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    /* ── History ─────────────────────────────────────────────── */
+    .history-section {
+      margin-top: 28px;
+      animation: fadeUp 0.7s ease 0.4s both;
+    }
+
+    .section-header {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-header::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 260px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .history-item:hover { border-color: var(--border-glow); }
+
+    .history-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .history-dot.spam { background: var(--red); box-shadow: 0 0 6px var(--red); }
+    .history-dot.ham  { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+    .history-msg {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .history-tag {
+      font-family: var(--mono);
+      font-size: 0.65rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .history-tag.spam { background: var(--red-dim); color: var(--red); }
+    .history-tag.ham  { background: var(--green-dim); color: var(--green); }
+
+    .empty-history {
+      font-family: var(--mono);
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      text-align: center;
+      padding: 24px;
+      opacity: 0.5;
+    }
+
+    /* ── Error ───────────────────────────────────────────────── */
+    .error-msg {
+      display: none;
+      background: var(--red-dim);
+      border: 1px solid var(--red);
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-family: var(--mono);
+      font-size: 0.82rem;
+      color: var(--red);
+      margin-top: 16px;
+    }
+
+    /* ── Footer ──────────────────────────────────────────────── */
+    footer {
+      text-align: center;
+      margin-top: 48px;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      opacity: 0.5;
+      animation: fadeUp 0.7s ease 0.5s both;
+    }
+
+    footer a { color: var(--cyan); text-decoration: none; }
+
+    /* ── Animations ──────────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Responsive ──────────────────────────────────────────── */
+    @media (max-width: 540px) {
+      .wrapper { padding: 40px 16px 60px; }
+      .card { padding: 24px 20px; }
+      .details-grid { grid-template-columns: 1fr; }
+      .stats-row { flex-direction: column; }
+      .btn-row { flex-direction: column; }
+    }
+  </style>
+</head>
+
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <header>
+    <div class="logo-row">
+      <!-- Shield SVG Icon -->
+      <svg class="shield-icon" viewBox="0 0 52 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M26 2L4 12V28C4 40.5 13.5 52 26 56C38.5 52 48 40.5 48 28V12L26 2Z"
+              fill="#00e5ff12" stroke="#00e5ff" stroke-width="1.5"/>
+        <path d="M26 10L10 18V28C10 37 17 45.5 26 48.5C35 45.5 42 37 42 28V18L26 10Z"
+              fill="#00e5ff08" stroke="#00e5ff" stroke-width="1" stroke-dasharray="3 3"/>
+        <path d="M18 28L23 33L34 22" stroke="#00e5ff" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h1>SpamShield</h1>
+    </div>
+    <p class="tagline">AI-Powered Message Classifier</p>
+    <span class="badge">Multinomial Naive Bayes · 98.12% Accuracy</span>
+  </header>
+
+  <!-- Input Card -->
+  <div class="card">
+    <div class="input-label">Enter Message to Analyze</div>
+    <textarea
+      id="messageInput"
+      placeholder="Paste or type any email or SMS message here...&#10;&#10;Example: 'Congratulations! You have won a FREE iPhone. Click here now!'"
+      maxlength="2000"
+    ></textarea>
+    <div class="char-count"><span id="charCount">0</span> / 2000</div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="analyzeBtn" onclick="analyze()">
+        Analyze Message
+      </button>
+      <button class="btn-clear" onclick="clearAll()">Clear</button>
+    </div>
+
+    <div class="scanning-bar" id="scanBar"></div>
+    <div class="scanning-text" id="scanText">// Scanning message...</div>
+    <div class="error-msg" id="errorMsg"></div>
+  </div>
+
+  <!-- Result Panel (hidden until prediction) -->
+  <div class="result-panel" id="resultPanel">
+
+    <div class="verdict-row">
+      <div class="verdict-icon" id="verdictIcon"></div>
+      <div class="verdict-text">
+        <h2 id="verdictLabel"></h2>
+        <div class="verdict-sub" id="verdictSub"></div>
+      </div>
+    </div>
+
+    <div class="prob-section">
+      <div class="prob-label">Probability Breakdown</div>
+
+      <div class="prob-row spam-row">
+        <div class="prob-name">SPAM</div>
+        <div class="prob-bar-bg">
+          <div class="prob-bar-fill spam" id="spamBar"></div>
+        </div>
+        <div class="prob-value" id="spamVal"></div>
+      </div>
+
+      <div class="prob-row ham-row">
+        <div class="prob-name">HAM</div>
+        <div class="prob-bar-bg">
+          <div class="prob-bar-fill ham" id="hamBar"></div>
+        </div>
+        <div class="prob-value" id="hamVal"></div>
+      </div>
+    </div>
+
+    <div class="details-grid">
+      <div class="detail-box">
+        <div class="detail-box-label">Confidence Level</div>
+        <div class="detail-box-value">
+          <span class="confidence-badge" id="confidenceBadge"></span>
+        </div>
+      </div>
+      <div class="detail-box">
+        <div class="detail-box-label">Cleaned Text (after NLP)</div>
+        <div class="detail-box-value" id="cleanedText" style="font-size:0.72rem;color:var(--text-dim)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session Stats -->
+  <div class="stats-row">
+    <div class="stat-box">
+      <div class="stat-number" id="statTotal">0</div>
+      <div class="stat-label">Messages Checked</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-number" id="statSpam" style="color:var(--red)">0</div>
+      <div class="stat-label">Spam Detected</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-number" id="statHam" style="color:var(--green)">0</div>
+      <div class="stat-label">Clean Messages</div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div class="history-section">
+    <div class="section-header">Recent Checks</div>
+    <div class="history-list" id="historyList">
+      <div class="empty-history">No messages analyzed yet.</div>
+    </div>
+  </div>
+
+  <footer>
+    Built at Abdul Wali Khan University Mardan &nbsp;·&nbsp;
+    Model: Multinomial Naive Bayes &nbsp;·&nbsp;
+    <a href="https://github.com" target="_blank">GitHub</a>
+  </footer>
+
+</div>
+
+<script>
+  // ── Config ────────────────────────────────────────────────
+  // IMPORTANT: After deploying backend to Render,
+  // replace this URL with your actual Render URL.
+  // Example: "https://spam-detector-api.onrender.com"
+  const API_URL = "https://YOUR-APP-NAME.onrender.com";
+
+  // ── State ─────────────────────────────────────────────────
+  let stats   = { total: 0, spam: 0, ham: 0 };
+  let history = [];
+
+  // ── Character counter ─────────────────────────────────────
+  document.getElementById('messageInput').addEventListener('input', function () {
+    document.getElementById('charCount').textContent = this.value.length;
+  });
+
+  // ── Analyze ───────────────────────────────────────────────
+  async function analyze() {
+    const input = document.getElementById('messageInput').value.trim();
+    const btn   = document.getElementById('analyzeBtn');
+    const err   = document.getElementById('errorMsg');
+
+    // Hide old error
+    err.style.display = 'none';
+
+    if (!input) {
+      showError("Please enter a message before analyzing.");
+      return;
+    }
+
+    // Show scanning state
+    setScanning(true);
+    btn.disabled = true;
+    hideResult();
+
+    try {
+      const response = await fetch(`${API_URL}/predict`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ message: input })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.detail || `Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      showResult(data);
+      addToHistory(data);
+      updateStats(data.is_spam);
+
+    } catch (e) {
+      showError(
+        e.message.includes('Failed to fetch')
+          ? "Cannot connect to the API. Make sure the backend is running and API_URL is set correctly."
+          : e.message
+      );
+    } finally {
+      setScanning(false);
+      btn.disabled = false;
+    }
+  }
+
+  // ── Show Result ───────────────────────────────────────────
+  function showResult(data) {
+    const panel = document.getElementById('resultPanel');
+    panel.style.display  = 'block';
+    panel.className = `result-panel ${data.is_spam ? 'spam' : 'ham'}`;
+
+    // Force reflow for animation replay
+    void panel.offsetWidth;
+    panel.style.animation = 'none';
+    void panel.offsetWidth;
+    panel.style.animation = '';
+
+    document.getElementById('verdictIcon').textContent  = data.is_spam ? '🚫' : '✅';
+    document.getElementById('verdictLabel').textContent = data.is_spam ? 'SPAM DETECTED' : 'SAFE MESSAGE';
+    document.getElementById('verdictSub').textContent   = data.is_spam
+      ? 'This message contains spam indicators. Do not engage.'
+      : 'This message appears to be legitimate.';
+
+    // Bars (animate after brief delay)
+    setTimeout(() => {
+      document.getElementById('spamBar').style.width = data.spam_probability + '%';
+      document.getElementById('hamBar').style.width  = data.ham_probability  + '%';
+    }, 80);
+
+    document.getElementById('spamVal').textContent = data.spam_probability + '%';
+    document.getElementById('hamVal').textContent  = data.ham_probability  + '%';
+
+    const badge = document.getElementById('confidenceBadge');
+    badge.textContent = data.confidence;
+    badge.className   = `confidence-badge confidence-${data.confidence}`;
+
+    document.getElementById('cleanedText').textContent =
+      data.cleaned_text || '(no significant words after processing)';
+  }
+
+  function hideResult() {
+    const panel = document.getElementById('resultPanel');
+    panel.style.display = 'none';
+  }
+
+  // ── Stats ─────────────────────────────────────────────────
+  function updateStats(isSpam) {
+    stats.total++;
+    if (isSpam) stats.spam++; else stats.ham++;
+    document.getElementById('statTotal').textContent = stats.total;
+    document.getElementById('statSpam').textContent  = stats.spam;
+    document.getElementById('statHam').textContent   = stats.ham;
+  }
+
+  // ── History ───────────────────────────────────────────────
+  function addToHistory(data) {
+    history.unshift(data);
+    if (history.length > 10) history.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const list = document.getElementById('historyList');
+    if (history.length === 0) {
+      list.innerHTML = '<div class="empty-history">No messages analyzed yet.</div>';
+      return;
+    }
+
+    list.innerHTML = history.map(item => `
+      <div class="history-item" onclick="loadFromHistory('${encodeURIComponent(item.original_message)}')">
+        <div class="history-dot ${item.is_spam ? 'spam' : 'ham'}"></div>
+        <div class="history-msg">${escapeHtml(item.original_message)}</div>
+        <div class="history-tag ${item.is_spam ? 'spam' : 'ham'}">${item.label}</div>
+      </div>
+    `).join('');
+  }
+
+  function loadFromHistory(encoded) {
+    const msg = decodeURIComponent(encoded);
+    document.getElementById('messageInput').value = msg;
+    document.getElementById('charCount').textContent = msg.length;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ── Helpers ───────────────────────────────────────────────
+  function setScanning(active) {
+    document.getElementById('scanBar').classList.toggle('active', active);
+    document.getElementById('scanText').classList.toggle('active', active);
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = '⚠ ' + msg;
+    el.style.display = 'block';
+  }
+
+  function clearAll() {
+    document.getElementById('messageInput').value = '';
+    document.getElementById('charCount').textContent = '0';
+    document.getElementById('errorMsg').style.display = 'none';
+    hideResult();
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Allow Ctrl+Enter to submit
+  document.getElementById('messageInput').addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'Enter') analyze();
+  });
+</script>
+</body>
+</html>
