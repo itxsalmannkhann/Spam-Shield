@@ -34,15 +34,18 @@ app.add_middleware(
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 try:
+    # Load model and vectorizer from pickle files
     model      = pickle.load(open(os.path.join(BASE_DIR, "MNB.pkl"), "rb"))
     vectorizer = pickle.load(open(os.path.join(BASE_DIR, "vectorizer.pkl"), "rb"))
     print("Model and vectorizer loaded successfully.")
 except FileNotFoundError as e:
+    # Handle file not found error
     print(f"ERROR: Could not load model files. {e}")
     model = None
     vectorizer = None
 
 # ── Stopwords (inline — no NLTK download needed on server) ───────────────────
+# Define a set of stopwords to ignore during preprocessing
 STOPWORDS = {
     'i','me','my','myself','we','our','ours','ourselves','you','your',
     'yours','yourself','yourselves','he','him','his','himself','she',
@@ -63,15 +66,19 @@ STOPWORDS = {
     'weren','won','wouldn'
 }
 
+# Initialize PorterStemmer for stemming words
 ps = PorterStemmer()
 
 
 # ── Preprocessing ─────────────────────────────────────────────────────────────
 def preprocess(text: str) -> str:
     """Apply the same cleaning pipeline used during model training."""
+    # Remove non-alphabetic characters and convert to lowercase
     text = re.sub('[^a-zA-Z]', ' ', text)
     text = text.lower().split()
+    # Remove stopwords and stem words
     text = [ps.stem(w) for w in text if w not in STOPWORDS]
+    # Join the cleaned words back into a string
     return ' '.join(text)
 
 
@@ -118,25 +125,27 @@ def predict(request: MessageRequest):
     Predict whether a message is spam or ham.
     Returns label, probabilities, and confidence level.
     """
+    # Check if model and vectorizer are loaded
     if model is None or vectorizer is None:
         raise HTTPException(status_code=503, detail="Model not loaded. Check server logs.")
 
+    # Check if message is empty
     if not request.message.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty.")
 
-    # Preprocess
+    # Preprocess the message
     cleaned = preprocess(request.message)
 
-    # Vectorize
+    # Vectorize the cleaned message
     vector = vectorizer.transform([cleaned]).toarray()
 
-    # Predict
+    # Make prediction using the model
     prediction   = model.predict(vector)[0]
     proba        = model.predict_proba(vector)[0]
     ham_prob     = round(float(proba[0]) * 100, 2)
     spam_prob    = round(float(proba[1]) * 100, 2)
 
-    # Confidence level based on winning probability
+    # Determine confidence level based on winning probability
     max_prob = max(ham_prob, spam_prob)
     if max_prob >= 90:
         confidence = "High"
