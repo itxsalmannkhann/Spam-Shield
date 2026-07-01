@@ -289,8 +289,8 @@ The dataset is imbalanced (much more ham than spam), which is realistic — in r
 ---
 
 ## Author
-
+**Name:** Salman Khan
 **Student:** Abdul Wali Khan University Mardan  
 **Department:** Computer Science / Artificial Intelligence  
-**Semester:** 4th Semester  
+**Semester:** 6th Semester  
 **Project Type:** Machine Learning — Text Classification
